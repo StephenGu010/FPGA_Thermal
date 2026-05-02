@@ -30,7 +30,7 @@ module scaler_bilinear #(
     output reg busy
 );
 localparam MEM_PIXELS = MAX_IN_WIDTH * MAX_IN_HEIGHT;
-reg [PIXEL_WIDTH-1:0] frame_mem [0:MEM_PIXELS-1];
+reg [PIXEL_WIDTH-1:0] frame_mem [0:MEM_PIXELS-1] /* synthesis syn_ramstyle="block_ram" */;
 reg [15:0] src_w, src_h, dst_w, dst_h, ox, oy;
 reg [31:0] scale_x_q8, scale_y_q8, src_x_q8, src_y_q8;
 reg [15:0] x0, y0, x1, y1;

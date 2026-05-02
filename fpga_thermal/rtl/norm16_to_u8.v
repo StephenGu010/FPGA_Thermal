@@ -28,6 +28,7 @@ function [7:0] normalize_minmax;
     input [15:0] min_v;
     input [15:0] max_v;
     reg [31:0] scaled;
+    reg [31:0] norm32;
     reg [15:0] range_v;
 begin
     if (max_v <= min_v || value <= min_v) normalize_minmax = 8'd0;
@@ -35,7 +36,8 @@ begin
     else begin
         range_v = max_v - min_v;
         scaled = (value - min_v) * 32'd255;
-        normalize_minmax = scaled / range_v;
+        norm32 = scaled / range_v;
+        normalize_minmax = (norm32 > 32'd255) ? 8'd255 : norm32[7:0];
     end
 end
 endfunction

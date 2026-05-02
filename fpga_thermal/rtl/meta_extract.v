@@ -32,6 +32,12 @@ module meta_extract #(
 reg [31:0] sum_x, sum_y;
 wire is_center = (in_x == FRAME_WIDTH / 2) && (in_y == FRAME_HEIGHT / 2);
 wire in_range = (raw_in >= raw_low_threshold) && (raw_in <= raw_high_threshold);
+function [15:0] u32_to_u16;
+    input [31:0] value;
+begin
+    u32_to_u16 = (value > 32'h0000FFFF) ? 16'hFFFF : value[15:0];
+end
+endfunction
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         raw_min <= 16'hFFFF; raw_max <= 0; raw_center <= 0; raw_hotspot <= 0; hotspot_x <= 0; hotspot_y <= 0;
@@ -49,7 +55,7 @@ always @(posedge clk or negedge rst_n) begin
             if (is_center) raw_center <= raw_in;
             if (in_range) begin candidate_count <= candidate_count + 1'b1; sum_x <= sum_x + in_x; sum_y <= sum_y + in_y; end
             if (in_frame_end) begin
-                if (candidate_count != 0) begin candidate_cx <= sum_x / candidate_count; candidate_cy <= sum_y / candidate_count; end
+                if (candidate_count != 0) begin candidate_cx <= u32_to_u16(sum_x / candidate_count); candidate_cy <= u32_to_u16(sum_y / candidate_count); end
                 else begin candidate_cx <= 0; candidate_cy <= 0; end
                 meta_valid <= 1'b1;
             end

@@ -15,7 +15,8 @@ module top_tiny1c_fpga #(
     parameter THUMB_WIDTH = 64,
     parameter THUMB_HEIGHT = 48,
     parameter USE_BILINEAR = 0,
-    parameter SPI_CLK_DIV = 2
+    parameter SPI_CLK_DIV = 2,
+    parameter PACKET_BUFFER_DISPLAY = 0
 ) (
     input wire clk,
     input wire rst_n,
@@ -44,6 +45,7 @@ module top_tiny1c_fpga #(
 localparam DISPLAY_MAX_WIDTH = OBS_DISPLAY_WIDTH;
 localparam DISPLAY_MAX_HEIGHT = OBS_DISPLAY_HEIGHT;
 localparam DISPLAY_MAX_PIXELS = DISPLAY_MAX_WIDTH * DISPLAY_MAX_HEIGHT;
+localparam DISPLAY_MEM_PIXELS = PACKET_BUFFER_DISPLAY ? DISPLAY_MAX_PIXELS : 1;
 localparam THUMB_PIXELS = THUMB_WIDTH * THUMB_HEIGHT;
 localparam MASK_BYTES = (THUMB_PIXELS + 7) / 8;
 localparam [15:0] RAW_WIDTH_U16 = RAW_WIDTH;
@@ -153,14 +155,13 @@ edge_blend u_blend (
     .in_valid(sobel_valid), .in_x(sobel_x), .in_y(sobel_y), .gray_out(blend_gray), .out_valid(blend_valid), .out_x(blend_x), .out_y(blend_y)
 );
 
-reg [7:0] display_mem [0:DISPLAY_MAX_PIXELS-1];
-reg [7:0] thumb_mem [0:THUMB_PIXELS-1];
+reg [7:0] display_mem [0:DISPLAY_MEM_PIXELS-1] /* synthesis syn_ramstyle="block_ram" */;
+reg [7:0] thumb_mem [0:THUMB_PIXELS-1] /* synthesis syn_ramstyle="block_ram" */;
 reg [7:0] mask_mem [0:MASK_BYTES-1];
 integer i;
 reg [15:0] l_disp_w,l_disp_h,l_flags,l_min,l_max,l_center,l_hot,l_hx,l_hy,l_cx,l_cy,frame_id;
 reg [31:0] l_count;
 reg meta_seen, scale_seen, packet_start_req;
-wire [31:0] daddr = scale_y * disp_w_sel + scale_x;
 wire [31:0] baddr = blend_y * disp_w_sel + blend_x;
 wire [31:0] taddr = thumb_y * THUMB_WIDTH + thumb_x;
 wire [31:0] midx = cand_y * THUMB_WIDTH + cand_x;
@@ -179,8 +180,7 @@ always @(posedge clk or negedge rst_n) begin
         end
         if (thumb_valid) thumb_mem[taddr] <= thumb_gray;
         if (cand_valid) mask_mem[mbyte][mbit] <= cand_mask;
-        if (scale_valid) display_mem[daddr] <= scale_pix;
-        if (blend_valid) display_mem[baddr] <= blend_gray;
+        if (PACKET_BUFFER_DISPLAY && blend_valid) display_mem[baddr] <= blend_gray;
         if (m_valid) begin
             l_disp_w <= disp_w_sel; l_disp_h <= disp_h_sel; l_flags <= {14'd0, edge_enable, display_mode};
             l_min <= m_min; l_max <= m_max; l_center <= m_center; l_hot <= m_hot; l_hx <= m_hx; l_hy <= m_hy;
@@ -193,19 +193,36 @@ always @(posedge clk or negedge rst_n) begin
 end
 
 reg [1:0] psec; reg [31:0] pidx; reg [7:0] pdata; reg pvalid, plast;
+reg [31:0] display_read_idx;
+reg [7:0] display_read_data;
+reg [15:0] payload_x;
+reg [15:0] payload_y;
+wire payload_boundary = (payload_x == 0) || (payload_y == 0) ||
+                        (payload_x == l_disp_w - 1) || (payload_y == l_disp_h - 1);
 wire pready;
 wire [31:0] display_payload_len = l_disp_w * l_disp_h;
 wire [31:0] payload_len = display_payload_len + THUMB_PIXELS + MASK_BYTES;
 always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin psec <= 0; pidx <= 0; pdata <= 0; pvalid <= 0; plast <= 0; end
+    if (!rst_n) begin
+        psec <= 0; pidx <= 0; pdata <= 0; pvalid <= 0; plast <= 0;
+        display_read_idx <= 0; display_read_data <= 0; payload_x <= 0; payload_y <= 0;
+    end
     else begin
         pvalid <= 0; plast <= 0;
-        if (packet_start_req) begin psec <= 0; pidx <= 0; end
+        display_read_data <= PACKET_BUFFER_DISPLAY ? display_mem[display_read_idx] : 8'd0;
+        if (packet_start_req) begin psec <= 0; pidx <= 0; display_read_idx <= 0; payload_x <= 0; payload_y <= 0; end
         else if (pready) begin
             pvalid <= 1'b1;
             if (psec == 0) begin
-                pdata <= display_mem[pidx];
-                if (pidx == display_payload_len - 1) begin psec <= 1; pidx <= 0; end else pidx <= pidx + 1'b1;
+                display_read_idx <= pidx + 1'b1;
+                pdata <= (PACKET_BUFFER_DISPLAY && !payload_boundary) ? display_read_data : 8'd0;
+                if (pidx == display_payload_len - 1) begin
+                    psec <= 1; pidx <= 0; payload_x <= 0; payload_y <= 0;
+                end else begin
+                    pidx <= pidx + 1'b1;
+                    if (payload_x == l_disp_w - 1) begin payload_x <= 0; payload_y <= payload_y + 1'b1; end
+                    else payload_x <= payload_x + 1'b1;
+                end
             end else if (psec == 1) begin
                 pdata <= thumb_mem[pidx];
                 if (pidx == THUMB_PIXELS - 1) begin psec <= 2; pidx <= 0; end else pidx <= pidx + 1'b1;
