@@ -128,6 +128,7 @@ python scripts\dump_to_image.py --display sim\display_gray.bin --display-size 29
 ## Gowin TCL
 
 根据 `SUG100-2.6` 第 8 章，`gw_sh.exe script_file` 可执行 TCL 脚本，常用命令包括 `set_device`、`add_file`、`set_option`、`run syn` 和 `run all`。
+脚本会根据自身所在目录自动切换到工程根目录，因此从 `F:\FPGA\fpga_thermal`、`gowin\` 或 Gowin IDE 工作目录启动都不会把 `rtl/` 错解析成 `gowin/rtl/`。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\run_gowin_syn.ps1

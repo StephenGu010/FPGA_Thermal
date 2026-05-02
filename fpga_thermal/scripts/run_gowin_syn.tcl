@@ -2,6 +2,11 @@
 # Reference: SUG100-2.6 chapter 8, gw_sh.exe [script file], add_file,
 # set_device, set_option and run syn.
 
+set script_path [file normalize [info script]]
+set script_dir [file dirname $script_path]
+set project_root [file normalize [file join $script_dir ".."]]
+cd $project_root
+
 set_device -name GW1NR-9C GW1NR-LV9QN88PC6/I5
 
 add_file rtl/spi_rx_tiny1c.v
