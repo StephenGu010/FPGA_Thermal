@@ -33,9 +33,11 @@ module candidate_mask_gen #(
 );
 localparam STEP_X = IN_WIDTH / MASK_WIDTH;
 localparam STEP_Y = IN_HEIGHT / MASK_HEIGHT;
+localparam STEP_X_SHIFT = 2;
+localparam STEP_Y_SHIFT = 2;
 wire in_range = (raw_in >= raw_low_threshold) && (raw_in <= raw_high_threshold);
-wire select_pixel = ((in_x % STEP_X) == 0) && ((in_y % STEP_Y) == 0) &&
-                    (in_x / STEP_X < MASK_WIDTH) && (in_y / STEP_Y < MASK_HEIGHT);
+wire select_pixel = ((in_x & (STEP_X - 1)) == 0) && ((in_y & (STEP_Y - 1)) == 0) &&
+                    ((in_x >> STEP_X_SHIFT) < MASK_WIDTH) && ((in_y >> STEP_Y_SHIFT) < MASK_HEIGHT);
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         candidate_mask <= 0; mask_valid <= 0; mask_frame_start <= 0; mask_frame_end <= 0; mask_x <= 0; mask_y <= 0;
@@ -48,8 +50,8 @@ always @(posedge clk or negedge rst_n) begin
             if (select_pixel) begin
                 candidate_mask <= in_range; mask_valid <= 1'b1;
                 mask_frame_start <= (in_x == 0) && (in_y == 0);
-                mask_frame_end <= (in_x / STEP_X == MASK_WIDTH - 1) && (in_y / STEP_Y == MASK_HEIGHT - 1);
-                mask_x <= in_x / STEP_X; mask_y <= in_y / STEP_Y;
+                mask_frame_end <= ((in_x >> STEP_X_SHIFT) == MASK_WIDTH - 1) && ((in_y >> STEP_Y_SHIFT) == MASK_HEIGHT - 1);
+                mask_x <= in_x >> STEP_X_SHIFT; mask_y <= in_y >> STEP_Y_SHIFT;
             end
             if (in_frame_end) candidate_count_valid <= 1'b1;
         end

@@ -46,7 +46,8 @@ gowin/        Gowin 工程入口模板
 | `meta_extract.v` | raw min/max/center/hotspot/候选质心统计 |
 | `packet_tx_spi.v` | SPI 主机发送 header + payload + CRC16-CCITT |
 | `cfg_regs.v` | 预留配置寄存器 |
-| `top_tiny1c_fpga.v` | 完整 P0/P1 顶层集成 |
+| `top_tiny1c_fpga.v` | 完整 P0/P1 顶层集成，适合仿真和模块级验证 |
+| `top_tangnano9k.v` | Tang Nano 9K 板级 wrapper，IO 数量适合 QN88 封装 |
 
 ## 显示模式
 
@@ -119,10 +120,33 @@ python scripts\dump_to_image.py --display sim\display_gray.bin --display-size 29
 
 1. 打开 Gowin FPGA Designer。
 2. 以 `gowin/fpga_thermal.gprj` 为模板，或新建工程后加入 `rtl/*.v`。
-3. 顶层选择 `top_tiny1c_fpga`。
+3. 板级综合/布局布线顶层选择 `top_tangnano9k`；模块仿真顶层仍使用 `top_tiny1c_fpga`。
 4. 器件选择 Tang Nano 9K 常用的 `GW1NR-LV9QN88PC6/I5`。
 5. 根据实际接线修改 `constraints/tangnano9k.cst`。
-6. 先以 `USE_BILINEAR=0` 综合 P0 最近邻链路；资源允许后再改为 `USE_BILINEAR=1`。
+6. `top_tangnano9k` 默认使用 `PACKET_BUFFER_DISPLAY=0` 的资源适配模式，综合发送 metadata、thumb 和 mask，display payload 置 0；完整显示缓存/缩放/Sobel 链可在 `top_tiny1c_fpga` 中设置 `PACKET_BUFFER_DISPLAY=1` 做模块验证，但不建议直接作为 9K 板级综合目标。
+
+## Gowin TCL
+
+根据 `SUG100-2.6` 第 8 章，`gw_sh.exe script_file` 可执行 TCL 脚本，常用命令包括 `set_device`、`add_file`、`set_option`、`run syn` 和 `run all`。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\run_gowin_syn.ps1
+powershell -ExecutionPolicy Bypass -File scripts\run_gowin_all.ps1
+```
+
+已在 Gowin V1.9.11.03 Education 上验证 `top_tangnano9k`：
+
+| 项目 | 结果 |
+| --- | --- |
+| `run syn` | 通过 |
+| `run all` | 通过，生成 bitstream |
+| Logic | 1549 / 8640，18% |
+| Register | 722 / 6693，11% |
+| BSRAM | 2 / 26，8% |
+| I/O Port | 12 / 71，17% |
+| Fmax | 52.716 MHz，高于 27 MHz 约束 |
+
+原先的 `display_mem` DFF 超限来自多写口/非 BSRAM 友好写法；完整 observe 显示帧缓存加 scaler 帧缓存也会超过 9K 片上 RAM，因此板级默认采用资源适配模式。后续若要输出真实 `display_gray`，建议改成行 FIFO/ESP32 侧缩放缓存，或外接 SRAM/PSRAM，而不是在 GW1NR-9 内部缓存整帧显示图。
 
 ## 工程备注
 

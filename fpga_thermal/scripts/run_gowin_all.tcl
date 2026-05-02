@@ -1,6 +1,5 @@
-# Gowin command-line synthesis script.
-# Reference: SUG100-2.6 chapter 8, gw_sh.exe [script file], add_file,
-# set_device, set_option and run syn.
+# Gowin command-line full implementation script.
+# Reference: SUG100-2.6 chapter 8, gw_sh.exe [script file] and run all.
 
 set_device -name GW1NR-9C GW1NR-LV9QN88PC6/I5
 
@@ -25,8 +24,9 @@ add_file constraints/tangnano9k.cst
 
 set_option -top_module top_tangnano9k
 set_option -verilog_std v2001
-set_option -output_base_name fpga_thermal
+set_option -output_base_name fpga_thermal_all
 set_option -rw_check_on_ram 0
 set_option -print_all_synthesis_warning 1
+set_option -gen_text_timing_rpt 1
 
-run syn
+run all

@@ -20,6 +20,7 @@
         <File path="../rtl/cfg_regs.v" type="file.verilog" enable="1"/>
         <File path="../rtl/packet_tx_spi.v" type="file.verilog" enable="1"/>
         <File path="../rtl/top_tiny1c_fpga.v" type="file.verilog" enable="1"/>
+        <File path="../rtl/top_tangnano9k.v" type="file.verilog" enable="1"/>
         <File path="../constraints/tangnano9k.cst" type="file.cst" enable="1"/>
         <File path="../constraints/tangnano9k.sdc" type="file.sdc" enable="1"/>
     </FileList>

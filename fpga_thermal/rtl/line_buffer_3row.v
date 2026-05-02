@@ -21,13 +21,11 @@ module line_buffer_3row #(
     output reg [15:0] out_x,
     output reg [15:0] out_y
 );
-reg [PIXEL_WIDTH-1:0] line0 [0:WIDTH-1];
-reg [PIXEL_WIDTH-1:0] line1 [0:WIDTH-1];
-integer i;
+reg [PIXEL_WIDTH-1:0] line0 [0:WIDTH-1] /* synthesis syn_ramstyle="block_ram" */;
+reg [PIXEL_WIDTH-1:0] line1 [0:WIDTH-1] /* synthesis syn_ramstyle="block_ram" */;
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         row0_pixel <= 0; row1_pixel <= 0; row2_pixel <= 0; out_valid <= 0; out_x <= 0; out_y <= 0;
-        for (i = 0; i < WIDTH; i = i + 1) begin line0[i] <= 0; line1[i] <= 0; end
     end else begin
         out_valid <= 0;
         if (in_valid) begin

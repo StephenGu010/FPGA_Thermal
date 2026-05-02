@@ -120,73 +120,108 @@ candidate_mask_gen #(.IN_WIDTH(RAW_WIDTH), .IN_HEIGHT(RAW_HEIGHT), .MASK_WIDTH(T
 );
 
 wire [7:0] roi_pix; wire roi_valid, roi_fs, roi_fe; wire [15:0] roi_x, roi_y;
-roi_crop #(.PIXEL_WIDTH(8)) u_roi (
-    .clk(clk), .rst_n(rst_n), .pixel_in(gray), .in_valid(gray_valid), .in_x(gray_x), .in_y(gray_y),
-    .roi_x0(roi_x0_sel), .roi_y0(roi_y0_sel), .roi_w(roi_w_sel), .roi_h(roi_h_sel),
-    .pixel_out(roi_pix), .out_valid(roi_valid), .out_frame_start(roi_fs), .out_frame_end(roi_fe), .out_x(roi_x), .out_y(roi_y)
-);
-
 wire [7:0] scale_pix; wire scale_valid, scale_fe; wire [15:0] scale_x, scale_y; wire scale_busy;
+wire [7:0] sobel_center, sobel_edge; wire sobel_valid; wire [15:0] sobel_x, sobel_y;
+wire [7:0] blend_gray; wire blend_valid; wire [15:0] blend_x, blend_y;
+
 generate
-if (USE_BILINEAR) begin : g_bi
-    scaler_bilinear #(.MAX_IN_WIDTH(RAW_WIDTH), .MAX_IN_HEIGHT(RAW_HEIGHT), .PIXEL_WIDTH(8)) u_scaler (
-        .clk(clk), .rst_n(rst_n), .pixel_in(roi_pix), .in_valid(roi_valid), .in_frame_start(roi_fs), .in_frame_end(roi_fe),
-        .in_x(roi_x), .in_y(roi_y), .in_width(roi_w_sel), .in_height(roi_h_sel), .out_width_cfg(disp_w_sel), .out_height_cfg(disp_h_sel),
-        .pixel_out(scale_pix), .out_valid(scale_valid), .out_frame_start(), .out_frame_end(scale_fe), .out_x(scale_x), .out_y(scale_y), .busy(scale_busy)
+if (PACKET_BUFFER_DISPLAY) begin : g_display_pipeline
+    roi_crop #(.PIXEL_WIDTH(8)) u_roi (
+        .clk(clk), .rst_n(rst_n), .pixel_in(gray), .in_valid(gray_valid), .in_x(gray_x), .in_y(gray_y),
+        .roi_x0(roi_x0_sel), .roi_y0(roi_y0_sel), .roi_w(roi_w_sel), .roi_h(roi_h_sel),
+        .pixel_out(roi_pix), .out_valid(roi_valid), .out_frame_start(roi_fs), .out_frame_end(roi_fe), .out_x(roi_x), .out_y(roi_y)
     );
-end else begin : g_nn
-    scaler_nearest #(.MAX_IN_WIDTH(RAW_WIDTH), .MAX_IN_HEIGHT(RAW_HEIGHT), .PIXEL_WIDTH(8)) u_scaler (
-        .clk(clk), .rst_n(rst_n), .pixel_in(roi_pix), .in_valid(roi_valid), .in_frame_start(roi_fs), .in_frame_end(roi_fe),
-        .in_x(roi_x), .in_y(roi_y), .in_width(roi_w_sel), .in_height(roi_h_sel), .out_width_cfg(disp_w_sel), .out_height_cfg(disp_h_sel),
-        .pixel_out(scale_pix), .out_valid(scale_valid), .out_frame_start(), .out_frame_end(scale_fe), .out_x(scale_x), .out_y(scale_y), .busy(scale_busy)
+
+    if (USE_BILINEAR) begin : g_bi
+        scaler_bilinear #(.MAX_IN_WIDTH(RAW_WIDTH), .MAX_IN_HEIGHT(RAW_HEIGHT), .PIXEL_WIDTH(8)) u_scaler (
+            .clk(clk), .rst_n(rst_n), .pixel_in(roi_pix), .in_valid(roi_valid), .in_frame_start(roi_fs), .in_frame_end(roi_fe),
+            .in_x(roi_x), .in_y(roi_y), .in_width(roi_w_sel), .in_height(roi_h_sel), .out_width_cfg(disp_w_sel), .out_height_cfg(disp_h_sel),
+            .pixel_out(scale_pix), .out_valid(scale_valid), .out_frame_start(), .out_frame_end(scale_fe), .out_x(scale_x), .out_y(scale_y), .busy(scale_busy)
+        );
+    end else begin : g_nn
+        scaler_nearest #(.MAX_IN_WIDTH(RAW_WIDTH), .MAX_IN_HEIGHT(RAW_HEIGHT), .PIXEL_WIDTH(8)) u_scaler (
+            .clk(clk), .rst_n(rst_n), .pixel_in(roi_pix), .in_valid(roi_valid), .in_frame_start(roi_fs), .in_frame_end(roi_fe),
+            .in_x(roi_x), .in_y(roi_y), .in_width(roi_w_sel), .in_height(roi_h_sel), .out_width_cfg(disp_w_sel), .out_height_cfg(disp_h_sel),
+            .pixel_out(scale_pix), .out_valid(scale_valid), .out_frame_start(), .out_frame_end(scale_fe), .out_x(scale_x), .out_y(scale_y), .busy(scale_busy)
+        );
+    end
+
+    sobel3x3 #(.WIDTH(DISPLAY_MAX_WIDTH)) u_sobel (
+        .clk(clk), .rst_n(rst_n), .gray_in(scale_pix), .in_valid(scale_valid), .in_x(scale_x), .in_y(scale_y),
+        .edge_threshold(edge_threshold), .center_gray(sobel_center), .edge_strength(sobel_edge), .edge_mask(),
+        .out_valid(sobel_valid), .out_x(sobel_x), .out_y(sobel_y)
     );
+
+    edge_blend u_blend (
+        .clk(clk), .rst_n(rst_n), .gray_in(sobel_center), .edge_strength(sobel_edge), .edge_enable(edge_enable), .edge_gain(edge_gain),
+        .in_valid(sobel_valid), .in_x(sobel_x), .in_y(sobel_y), .gray_out(blend_gray), .out_valid(blend_valid), .out_x(blend_x), .out_y(blend_y)
+    );
+end else begin : g_no_display_pipeline
+    assign roi_pix = 8'd0;
+    assign roi_valid = 1'b0;
+    assign roi_fs = 1'b0;
+    assign roi_fe = 1'b0;
+    assign roi_x = 16'd0;
+    assign roi_y = 16'd0;
+    assign scale_pix = 8'd0;
+    assign scale_valid = 1'b0;
+    assign scale_fe = 1'b0;
+    assign scale_x = 16'd0;
+    assign scale_y = 16'd0;
+    assign scale_busy = 1'b0;
+    assign sobel_center = 8'd0;
+    assign sobel_edge = 8'd0;
+    assign sobel_valid = 1'b0;
+    assign sobel_x = 16'd0;
+    assign sobel_y = 16'd0;
+    assign blend_gray = 8'd0;
+    assign blend_valid = 1'b0;
+    assign blend_x = 16'd0;
+    assign blend_y = 16'd0;
 end
 endgenerate
-
-wire [7:0] sobel_center, sobel_edge; wire sobel_valid; wire [15:0] sobel_x, sobel_y;
-sobel3x3 #(.WIDTH(DISPLAY_MAX_WIDTH)) u_sobel (
-    .clk(clk), .rst_n(rst_n), .gray_in(scale_pix), .in_valid(scale_valid), .in_x(scale_x), .in_y(scale_y),
-    .edge_threshold(edge_threshold), .center_gray(sobel_center), .edge_strength(sobel_edge), .edge_mask(),
-    .out_valid(sobel_valid), .out_x(sobel_x), .out_y(sobel_y)
-);
-wire [7:0] blend_gray; wire blend_valid; wire [15:0] blend_x, blend_y;
-edge_blend u_blend (
-    .clk(clk), .rst_n(rst_n), .gray_in(sobel_center), .edge_strength(sobel_edge), .edge_enable(edge_enable), .edge_gain(edge_gain),
-    .in_valid(sobel_valid), .in_x(sobel_x), .in_y(sobel_y), .gray_out(blend_gray), .out_valid(blend_valid), .out_x(blend_x), .out_y(blend_y)
-);
 
 reg [7:0] display_mem [0:DISPLAY_MEM_PIXELS-1] /* synthesis syn_ramstyle="block_ram" */;
 reg [7:0] thumb_mem [0:THUMB_PIXELS-1] /* synthesis syn_ramstyle="block_ram" */;
 reg [7:0] mask_mem [0:MASK_BYTES-1];
-integer i;
 reg [15:0] l_disp_w,l_disp_h,l_flags,l_min,l_max,l_center,l_hot,l_hx,l_hy,l_cx,l_cy,frame_id;
 reg [31:0] l_count;
 reg meta_seen, scale_seen, packet_start_req;
 wire [31:0] baddr = blend_y * disp_w_sel + blend_x;
 wire [31:0] taddr = thumb_y * THUMB_WIDTH + thumb_x;
-wire [31:0] midx = cand_y * THUMB_WIDTH + cand_x;
-wire [31:0] mbyte = midx >> 3;
-wire [2:0] mbit = 3'd7 - midx[2:0];
+reg [7:0] mask_pack;
+reg [2:0] mask_pack_count;
+reg [15:0] mask_wr_addr;
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         l_disp_w <= FULL_DISPLAY_WIDTH_U16; l_disp_h <= FULL_DISPLAY_HEIGHT_U16; l_flags <= 0;
         l_min <= 0; l_max <= 0; l_center <= 0; l_hot <= 0; l_hx <= 0; l_hy <= 0; l_count <= 0; l_cx <= 0; l_cy <= 0;
         meta_seen <= 0; scale_seen <= 0; packet_start_req <= 0; frame_id <= 0;
-        for (i=0; i<MASK_BYTES; i=i+1) mask_mem[i] <= 0;
+        mask_pack <= 0; mask_pack_count <= 0; mask_wr_addr <= 0;
     end else begin
         if (raw_fs && raw_valid) begin
             meta_seen <= 0; scale_seen <= 0; packet_start_req <= 0;
-            for (i=0; i<MASK_BYTES; i=i+1) mask_mem[i] <= 0;
+            mask_pack <= 0; mask_pack_count <= 0; mask_wr_addr <= 0;
         end
         if (thumb_valid) thumb_mem[taddr] <= thumb_gray;
-        if (cand_valid) mask_mem[mbyte][mbit] <= cand_mask;
+        if (cand_valid) begin
+            mask_pack <= {mask_pack[6:0], cand_mask};
+            if (mask_pack_count == 3'd7) begin
+                mask_mem[mask_wr_addr] <= {mask_pack[6:0], cand_mask};
+                mask_pack_count <= 0;
+                mask_wr_addr <= mask_wr_addr + 1'b1;
+            end else begin
+                mask_pack_count <= mask_pack_count + 1'b1;
+            end
+        end
         if (PACKET_BUFFER_DISPLAY && blend_valid) display_mem[baddr] <= blend_gray;
         if (m_valid) begin
             l_disp_w <= disp_w_sel; l_disp_h <= disp_h_sel; l_flags <= {14'd0, edge_enable, display_mode};
             l_min <= m_min; l_max <= m_max; l_center <= m_center; l_hot <= m_hot; l_hx <= m_hx; l_hy <= m_hy;
             l_count <= m_count; l_cx <= m_cx; l_cy <= m_cy; meta_seen <= 1'b1;
         end
-        if (scale_valid && scale_fe) scale_seen <= 1'b1;
+        if ((PACKET_BUFFER_DISPLAY && scale_valid && scale_fe) ||
+            (!PACKET_BUFFER_DISPLAY && raw_valid && raw_fe)) scale_seen <= 1'b1;
         if (meta_seen && scale_seen && !packet_busy && !packet_start_req) begin packet_start_req <= 1'b1; frame_id <= frame_id + 1'b1; end
         else if (packet_start_req && packet_busy) packet_start_req <= 1'b0;
     end

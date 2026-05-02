@@ -25,16 +25,18 @@ module thumb_gen #(
 );
 localparam STEP_X = IN_WIDTH / THUMB_WIDTH;
 localparam STEP_Y = IN_HEIGHT / THUMB_HEIGHT;
-wire select_pixel = ((in_x % STEP_X) == 0) && ((in_y % STEP_Y) == 0) &&
-                    (in_x / STEP_X < THUMB_WIDTH) && (in_y / STEP_Y < THUMB_HEIGHT);
+localparam STEP_X_SHIFT = 2;
+localparam STEP_Y_SHIFT = 2;
+wire select_pixel = ((in_x & (STEP_X - 1)) == 0) && ((in_y & (STEP_Y - 1)) == 0) &&
+                    ((in_x >> STEP_X_SHIFT) < THUMB_WIDTH) && ((in_y >> STEP_Y_SHIFT) < THUMB_HEIGHT);
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         thumb_gray <= 0; thumb_valid <= 0; thumb_frame_start <= 0; thumb_frame_end <= 0; thumb_x <= 0; thumb_y <= 0;
     end else begin
         thumb_valid <= in_valid && select_pixel;
         thumb_frame_start <= in_valid && select_pixel && (in_x == 0) && (in_y == 0);
-        thumb_frame_end <= in_valid && select_pixel && (in_x / STEP_X == THUMB_WIDTH - 1) && (in_y / STEP_Y == THUMB_HEIGHT - 1);
-        thumb_gray <= gray_in; thumb_x <= in_x / STEP_X; thumb_y <= in_y / STEP_Y;
+        thumb_frame_end <= in_valid && select_pixel && ((in_x >> STEP_X_SHIFT) == THUMB_WIDTH - 1) && ((in_y >> STEP_Y_SHIFT) == THUMB_HEIGHT - 1);
+        thumb_gray <= gray_in; thumb_x <= in_x >> STEP_X_SHIFT; thumb_y <= in_y >> STEP_Y_SHIFT;
     end
 end
 endmodule
