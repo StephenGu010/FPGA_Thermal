@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Project>
+  <Template>FPGA</Template>
+  <Device name="GW1NR-LV9QN88PC6/I5" />
+  <TopModule>top_tiny1c_fpga</TopModule>
+</Project>

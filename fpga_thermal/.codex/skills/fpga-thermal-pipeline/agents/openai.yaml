@@ -1,0 +1,3 @@
+display_name: FPGA Thermal Pipeline
+short_description: Tang Nano 9K thermal FPGA Verilog.
+default_prompt: Create or modify the Tang Nano 9K thermal preprocessing FPGA pipeline with Verilog-2001 RTL, Gowin-friendly synthesis, simulation testbenches, packet format updates, and clear FPGA/ESP32-S3 role boundaries.

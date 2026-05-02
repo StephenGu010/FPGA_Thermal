@@ -1,0 +1,9 @@
+// Tang Nano 9K placeholder constraints. Adjust Tiny1-C/ESP32-S3 pins to wiring.
+IO_LOC "clk" 52;
+IO_PORT "clk" PULL_MODE=UP;
+IO_LOC "rst_n" 4;
+IO_PORT "rst_n" PULL_MODE=UP;
+// Example pins from the lcd114_test reference are intentionally commented:
+// IO_LOC "esp_spi_mosi" 77;
+// IO_LOC "esp_spi_sclk" 76;
+// IO_LOC "esp_spi_cs_n" 47;

@@ -1,0 +1,10 @@
+sim/out/
+sim/png/
+*.vcd
+*.vvp
+*.wlf
+*.mpf
+*.mti
+impl/
+*.gprj.user
+__pycache__/
